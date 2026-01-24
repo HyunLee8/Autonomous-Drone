@@ -13,11 +13,11 @@ def get_agent_response(user_req):
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_req}
-        ],
+        ]
         response_format={"type": "json"}
     )
     data = json.loads(response.choices[0].message.content)
     return data
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000))
+    app.run(debug=True, port=5000)

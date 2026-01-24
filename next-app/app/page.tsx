@@ -1,5 +1,4 @@
 'use client'
-
 import TextType from '@/components/TextType';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -25,6 +24,8 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen items-center justify-center font-sans dark:bg-black">
       <Link href="resources" className="fixed top-5 font-bold">Resources</Link>
+      <Link href="demos" className="fixed top-12 font-bold">Demos</Link>
+      <button onClick={() => window.location.reload()} className="fixed top-19 font-bold cursor-pointer">Kill Switch</button>
       <h1 className="fixed top-5 right-5 text-6xl">GAZER</h1>
       <h2 className="fixed bottom-5 right-5 text-l">Developed by Isaac Lee and Aryan Thind</h2>
       <h2 className="fixed top-5 left-5 text-xl">2026 Hoya Hacks at</h2>
@@ -40,8 +41,8 @@ export default function Home() {
       <div className="z-10 relative">
         <div className={`transition-opacity duration-1000 ${isActive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="flex flex-col items-center justify-center gap-8">
-            <h2 className="text-5xl">Click below to <span className="font-bold">Activate</span> me</h2>
-            <button onClick={handleClick} className="py-5 px-10 border border-black bg-black text-white z-10 duration-500 hover:bg-white hover:text-black">Click me</button>
+            <h2 className="text-5xl">Initiate Takeoff</h2>
+            <button onClick={handleClick} className="py-5 px-10 border border-black bg-black text-white z-10 duration-500 hover:bg-white hover:text-black">Launch Gazer</button>
           </div>
         </div>
         {takeoff && (
