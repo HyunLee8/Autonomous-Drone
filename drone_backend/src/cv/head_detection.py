@@ -180,15 +180,6 @@ class HeadDetector:
                 x1, x2, x3, x4 = 0, x1, x2, new_w
                 y1, y2, y3, y4 = 0, y1, y2, new_h
 
-                cv2.rectangle(square_frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x2, y1), (x3, y2), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x3, y1), (x4, y2), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x1, y2), (x2, y3), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x2, y2), (x3, y3), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x3, y2), (x4, y3), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x1, y3), (x2, y4), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x2, y3), (x3, y4), (255, 255, 255), 2)
-                cv2.rectangle(square_frame, (x3, y3), (x4, y4), (255, 255, 255), 2)
 
                 # Draw circular deadzone (radius = 1/3 of frame width)
                 deadzone_radius = new_w // 3
@@ -246,18 +237,16 @@ class HeadDetector:
                         
                         x_head_in_square = x_head_center - (x_center - radius)
                         y_head_in_square = y_head_center
-                        
-                        # Draw HEAD bounding box
+    
                         cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
                         cv2.circle(frame, (x_head_center, y_head_center), 5, (0, 255, 0), -1)
                         cv2.line(frame, (x_head_center, y_head_center), (x_center, y_center), (0, 255, 0), 2)
                         
-                        # Draw keypoints for visualization
-                        for kp in keypoints[:5]:  # First 5 keypoints (face)
+                        for kp in keypoints[:5]:
                             if kp[0] > 0 and kp[1] > 0:
                                 cv2.circle(frame, (int(kp[0]), int(kp[1])), 3, (255, 0, 0), -1)
 
-                        # Drone Direction Logic - using actual HEAD size
+                      
                         directions = self.drone_directions(x_head_in_square, y_head_in_square, 
                                                           new_w, new_h, head_size)
                         
