@@ -8,6 +8,7 @@ import { useState } from 'react';
 export default function Home() {
   const [isTakingOff, setIsTakingOff] = useState(false);
   const [showProcess, setShowProcess] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState('');
 
   const handleTakeoff = () => {
     setIsTakingOff(true);
