@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS                 #import for localHost3000 and localHost5000 communication
 from src.llm import get_agent_response, transcribe_audio
+from src.cv import run_head_detection
 
 app = Flask(__name__)
 CORS(app)
@@ -14,3 +15,6 @@ def process_request():
         return jsonify({'message': 'I didn\'t catch that. Could you please repeat?'})
     message = get_agent_response(transcription)
     return jsonify({'transcription': transcription, 'message': message})
+
+def run_model():
+    run_head_detection()
