@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, Response
-from src.utils import run_detection, generate_frames, current_drone_data, frame_lock, stop_flag, drone
+from src.utils import run_detection, generate_frames, current_drone_data, frame_lock, stop_flag
 import threading
 
 cam_bp = Blueprint('cam', __name__)

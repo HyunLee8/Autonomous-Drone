@@ -1,7 +1,13 @@
-from src.utils import drone
+from src.tello import FlightLogic, TelloController
     
-def run_flight_logic():
-    global drone
-    if drone is None:
-        print("Drone not initialized for flight logic.")
-        return
+Flight_logic_instance = None
+
+def run_logic():
+    global Flight_logic_instance
+    Flight_logic_instance = FlightLogic()
+    Flight_logic_instance.start_flight_sequence()
+
+def stop_logic():
+    global Flight_logic_instance
+    if Flight_logic_instance and Flight_logic_instance.drone:
+        Flight_logic_instance.drone.stop()

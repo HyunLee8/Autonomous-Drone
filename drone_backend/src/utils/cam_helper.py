@@ -4,8 +4,8 @@ import threading
 import cv2
 
 latest_frame = None
+head_model = None
 frame_lock = threading.Lock()
-drone = None
 stop_flag = threading.Event() 
 
 current_drone_data = {
@@ -20,9 +20,8 @@ current_drone_data = {
 
 def run_detection():
     """Run head detection in background thread"""
-    global drone, latest_frame, frame_lock, current_drone_data, stop_flag
-    drone = TelloController()
-    head_model = HeadDetector(drone_controller=drone)
+    global latest_frame, frame_lock, current_drone_data, stop_flag, head_model
+    head_model = HeadDetector()
 
     def combined_callback(frame, control_values):
         if stop_flag.is_set():

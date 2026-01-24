@@ -4,12 +4,11 @@ import mediapipe as mp
 import os
 
 class HeadDetector:
-    def __init__(self, model_path=None, drone_controller=None):
+    def __init__(self, model_path=None):
         if model_path is None:
             current_dir = os.path.dirname(os.path.abspath(__file__))
             model_path = os.path.join(current_dir, 'face_landmarker.task')
 
-        self.drone_controller = drone_controller
         self.model_path = model_path
         self.frame_count = 0
         self._initialize_mediapipe()
@@ -295,21 +294,11 @@ class HeadDetector:
                         cv2.putText(frame, "No face detected", (10, 30), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                    if send_commands and self.drone_controller and control_values['face_detected']:
-                        self.drone_controller.send_rc_control(
-                            control_values['lr_velocity'],
-                            control_values['fb_velocity'],
-                            control_values['ud_velocity'],
-                            control_values['yaw_velocity']
-                        )
-
                     if frame_callback:
                         frame_callback(square_frame, control_values)
                     #cv2.imshow('Head Detection', square_frame)
 
                     if cv2.waitKey(1) & 0xFF == ord('q'):
-                        if self.drone_controller:
-                            self.drone_controller.emergency_land()
                         break     
             except Exception as e:
                 print(f'An error occurred: {e}')
