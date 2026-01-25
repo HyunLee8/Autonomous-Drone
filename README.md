@@ -1,16 +1,17 @@
 # Gazer
-Gazer 🚁
+Gazer
 An autonomous drone system that secures the chain of custody for digital forensic investigators.
+
 Overview
 Gazer is an intelligent drone platform designed to solve a critical problem in digital forensics: maintaining proper chain of custody documentation when investigators work solo. By acting as an autonomous visual witness, Gazer enables a single investigator to secure digital evidence while the drone automatically records their actions, ensuring legal admissibility of seized materials.
 Unlike traditional follow-me drones that produce shaky, unusable footage, Gazer employs advanced computer vision and control theory to deliver smooth, professional-grade documentation of evidence collection procedures.
 Key Features
 
-🎯 Autonomous Subject Tracking - Uses YOLO-based computer vision to identify and follow the investigator without manual piloting
-📹 Forensic-Grade Recording - Captures stable, third-person footage suitable for legal proceedings
-🎮 Smart Stabilization - Dynamic "Dead Zone" filtering ignores micro-movements to eliminate footage jitter
-🌐 Web Control Interface - Clean Next.js dashboard for launching, monitoring, and landing operations
-⚡ Real-Time Processing - High-concurrency architecture handles video streaming, CV analysis, and flight control simultaneously
+Autonomous Subject Tracking - Uses YOLO-based computer vision to identify and follow the investigator without manual piloting
+Forensic-Grade Recording - Captures stable, third-person footage suitable for legal proceedings
+Smart Stabilization - Dynamic "Dead Zone" filtering ignores micro-movements to eliminate footage jitter
+Web Control Interface - Clean Next.js dashboard for launching, monitoring, and landing operations
+Real-Time Processing - High-concurrency architecture handles video streaming, CV analysis, and flight control simultaneously
 
 How It Works
 Gazer combines several technologies to create a fully autonomous tracking system:
@@ -39,7 +40,7 @@ Hardware: DJI Tello drone
 
 Future Roadmap
 
-🔍 Object Search: Train YOLO to detect specific evidence types (laptops, hard drives, servers) for automated room scanning
-🤚 Gesture Controls: Hand signal recognition for intuitive drone commands (e.g., palm up to pause)
-🎤 Voice Commands: Natural language instructions for launch, landing, and repositioning
-🔄 Swarm Coordination: Multiple drones working together to document scenes from multiple angles
+Object Search: Train YOLO to detect specific evidence types (laptops, hard drives, servers) for automated room scanning
+Gesture Controls: Hand signal recognition for intuitive drone commands (e.g., palm up to pause)
+Voice Commands: Natural language instructions for launch, landing, and repositioning
+Swarm Coordination: Multiple drones working together to document scenes from multiple angles
