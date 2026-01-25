@@ -178,7 +178,6 @@ Recordings are automatically saved to `recordings/` with timestamps.
 
 - *** Object Search**: Adapt YOLO to detect specific objects (laptops, hard drives) to autonomously scan a room for evidence
 - *** Gesture Controls**: Hand signals to command the drone (palm up to pause)
-- *** Voice Commands**: Verbal instructions for launch and movement
 - *** Swarm Capabilities**: Multiple Gazers documenting a crime scene from multiple angles simultaneously
 
 ## Contributing
