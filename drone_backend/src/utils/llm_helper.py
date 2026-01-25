@@ -2,9 +2,12 @@ from src.llm.gemini import get_agent_response
 from src.llm.stt import transcribe_audio
 import threading
 
+# Thread synchronization
+_initialization_complete = threading.Event()
+tuner_lock = threading.Lock()
+
 # Global state for LLM parameter tuning
 parameter_tuner = None
-tuner_lock = threading.Lock()
 
 current_llm_data = {
     'last_transcription': '',
@@ -14,6 +17,7 @@ current_llm_data = {
     'last_action': None,
     'tuner_ready': False
 }
+
 
 class LLMParameterTuner:
     """Helper class to tune head tracking parameters based on LLM responses"""
@@ -273,17 +277,42 @@ User Request: {transcription}
         return context
 
 
+def _wait_for_tuner(timeout=10):
+    """Wait for tuner to be initialized (thread-safe)"""
+    if not _initialization_complete.wait(timeout=timeout):
+        print(f"⚠️ Tuner initialization timed out after {timeout}s")
+        return False
+    return True
+
+
 def initialize_tuner(head_detector):
     """Initialize the parameter tuner with head detector instance"""
-    global parameter_tuner, current_llm_data
+    global parameter_tuner, current_llm_data, _initialization_complete
     
     print("🔧 Initializing LLM Parameter Tuner...")
+    print(f"DEBUG: Current thread: {threading.current_thread().name}")
+    print(f"DEBUG: parameter_tuner is None: {parameter_tuner is None}")
     
     with tuner_lock:
+        print("DEBUG: Inside tuner_lock")
+        # Prevent double initialization
+        if parameter_tuner is not None:
+            print("⚠️ Tuner already initialized, skipping...")
+            _initialization_complete.set()
+            return
+        
+        print("DEBUG: Creating LLMParameterTuner...")
         parameter_tuner = LLMParameterTuner(head_detector)
+        print("DEBUG: LLMParameterTuner created")
+        
         current_llm_data['tuner_ready'] = True
         current_llm_data['current_forward_threshold'] = head_detector.head_size_forward_threshold
         current_llm_data['current_backward_threshold'] = head_detector.head_size_backward_threshold
+        
+        # Signal that initialization is complete
+        print("DEBUG: Setting _initialization_complete event")
+        _initialization_complete.set()
+        print("DEBUG: _initialization_complete event set")
         
     print(f"✅ Tuner initialized with thresholds: Forward={head_detector.head_size_forward_threshold}, Backward={head_detector.head_size_backward_threshold}")
 
@@ -309,8 +338,19 @@ def process_audio_request(audio_file):
             }
         
         print(f"Transcription: {transcription}")
+
+        # Wait for tuner to be ready (up to 10 seconds)
+        if not _wait_for_tuner(timeout=10):
+            return {
+                'success': True,
+                'transcription': transcription,
+                'response': f"I heard: {transcription}. System still initializing, please wait...",
+                'actions_taken': [],
+                'errors': ['Tuner still initializing'],
+                'current_thresholds': {}
+            }
         
-        # Check if tuner is initialized
+        # Double-check if tuner is initialized
         if parameter_tuner is None:
             print("⚠️ Parameter tuner not initialized - returning transcription only")
             return {
@@ -322,7 +362,7 @@ def process_audio_request(audio_file):
                 'current_thresholds': {}
             }
         
-        # Process with tuner if available
+        # Process with tuner
         with tuner_lock:
             current_llm_data['last_transcription'] = transcription
             
@@ -361,6 +401,7 @@ def process_audio_request(audio_file):
             'response': f"Error: {str(e)}"
         }
 
+
 def process_text_request(text):
     """Process text request and apply LLM tuning"""
     global parameter_tuner, current_llm_data, tuner_lock
@@ -398,6 +439,7 @@ def process_text_request(text):
             'current_thresholds': thresholds
         }
 
+
 def reset_parameters():
     """Reset parameters to default"""
     global parameter_tuner, current_llm_data, tuner_lock
@@ -414,6 +456,7 @@ def reset_parameters():
             current_llm_data['current_backward_threshold'] = thresholds['backward_threshold']
         
         return result
+
 
 def get_current_thresholds():
     """Get current threshold values"""

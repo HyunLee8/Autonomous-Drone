@@ -2,6 +2,7 @@ from src.tello import TelloController
 from src.cv import HeadDetector
 from src import utils
 import time
+from src.utils.llm_helper import initialize_tuner
 import logging
 import threading
 
@@ -14,13 +15,23 @@ _initialized = False
 def ensure_initialized():
     global drone, head_detector, _initialized
     
+    print(f"DEBUG ensure_initialized: Called, _initialized={_initialized}")
+    
     with _init_lock:
         if not _initialized:
             print("Initializing drone and detector...")
             drone = TelloController()
             head_detector = HeadDetector(drone=drone)
+            
+            print("🔧 Initializing LLM tuner...")
+            print(f"DEBUG: head_detector object: {head_detector}")
+            print(f"DEBUG: Created head_detector id: {id(head_detector)}")
+            initialize_tuner(head_detector)
+            print("✅ LLM tuner initialization complete")
+            
             _initialized = True
     
+    print(f"DEBUG ensure_initialized: Returning, _initialized={_initialized}")
     return drone, head_detector
 
 def get_drone():

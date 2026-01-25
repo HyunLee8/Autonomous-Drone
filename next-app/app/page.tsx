@@ -57,11 +57,13 @@ export default function Home() {
         if (!isActive && (
           transcription.includes('initiate flight') || 
           transcription.includes('initiate fly') ||
-          transcription.includes('initialize flight')
+          transcription.includes('initialize flight') ||
+          transcription.includes('initiate takeoff') ||  // ADD THIS
+          transcription.includes('initiate take off')     // AND THIS
         )) {
           console.log('Wake phrase detected');
           await handleTakeoff();
-        } 
+        }
         // Process commands after takeoff
         else if (isActive && data.response) {
           setIsProcessing(true);

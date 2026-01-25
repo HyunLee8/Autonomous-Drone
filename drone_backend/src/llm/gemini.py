@@ -25,7 +25,7 @@ def get_agent_response(user_req):
         
         # Generate content with JSON response format
         response = client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.0-flash-exp',
             contents=full_prompt,
             config=genai.types.GenerateContentConfig(
                 response_mime_type='application/json',

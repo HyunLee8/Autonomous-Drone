@@ -1,5 +1,4 @@
 from src.tello import get_head_detector
-from src.utils.llm_helper import initialize_tuner 
 import threading
 import cv2
 
@@ -22,9 +21,8 @@ def run_detection():
     """Run head detection in background thread"""
     global latest_frame, frame_lock, current_drone_data, stop_flag, head_model
     head_model = get_head_detector()
-
-    initialize_tuner(head_model)
-
+    print(f"DEBUG cam_helper: Using head_detector id: {id(head_model)}")
+    print(f"DEBUG: Initial velocities - fb:{head_model.fb_velocity}, ud:{head_model.ud_velocity}, yaw:{head_model.yaw_velocity}")
     def combined_callback(frame, control_values):
         if stop_flag.is_set():
             return
