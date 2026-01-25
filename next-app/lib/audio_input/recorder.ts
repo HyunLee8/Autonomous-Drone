@@ -8,7 +8,6 @@ export async function RecordAudio(): Promise<unknown> {
     
     const chunks: Blob[] = [];
 
-    // Setup audio analysis for silence detection
     const audioContext = new AudioContext();
     const analyser = audioContext.createAnalyser();
     const microphone = audioContext.createMediaStreamSource(stream);
@@ -29,14 +28,12 @@ export async function RecordAudio(): Promise<unknown> {
       const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
       const elapsedTime = Date.now() - recordingStartTime;
 
-      // Stop if max time reached
       if (elapsedTime > MAX_RECORDING_TIME) {
         console.log('Max recording time reached');
         mediaRecorder.stop();
         return;
       }
 
-      // Check for silence
       if (average < SILENCE_THRESHOLD) {
         if (!silenceStart) {
           silenceStart = Date.now();
@@ -62,11 +59,9 @@ export async function RecordAudio(): Promise<unknown> {
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(chunks, { type: 'audio/webm' });
         
-        // Cleanup
         stream.getTracks().forEach(track => track.stop());
         audioContext.close();
 
-        // Check if audio is too small
         if (audioBlob.size < 5000) {
           console.log('Audio too small, skipping');
           resolve({ 
@@ -77,7 +72,6 @@ export async function RecordAudio(): Promise<unknown> {
           return;
         }
 
-        // Send to backend
         const formData = new FormData();
         const audioFile = new File([audioBlob], 'audio.webm', { type: 'audio/webm' });
         formData.append('audio', audioFile);
@@ -111,7 +105,6 @@ export async function RecordAudio(): Promise<unknown> {
         });
       };
 
-      // Start recording immediately
       console.log('Recording started');
       mediaRecorder.start();
       checkAudio();

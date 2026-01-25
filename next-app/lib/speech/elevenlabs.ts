@@ -16,7 +16,7 @@ export async function SpeakWithElevenLabs(text: string) {
       URL.revokeObjectURL(audioUrl);
       reject(error);
     };
-    audio.play().catch(reject); // Handle play() promise rejection
+    audio.play().catch(reject);
   });
  }
  

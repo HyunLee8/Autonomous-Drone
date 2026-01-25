@@ -53,18 +53,16 @@ export default function Home() {
         
         const transcription = data.transcription.toLowerCase();
         
-        // Check for wake phrase
         if (!isActive && (
           transcription.includes('initiate flight') || 
           transcription.includes('initiate fly') ||
           transcription.includes('initialize flight') ||
-          transcription.includes('initiate takeoff') ||  // ADD THIS
-          transcription.includes('initiate take off')     // AND THIS
+          transcription.includes('initiate takeoff') ||  
+          transcription.includes('initiate take off')
         )) {
           console.log('Wake phrase detected');
           await handleTakeoff();
         }
-        // Process commands after takeoff
         else if (isActive && data.response) {
           setIsProcessing(true);
           await speakMessage(data.response);
@@ -109,7 +107,6 @@ export default function Home() {
     setTimeout(() => window.location.reload(), 2000);
   };
 
-  // Handle button press/release
   const handleMouseDown = () => {
     setIsHoldingButton(true);
     startRecording();
@@ -119,7 +116,6 @@ export default function Home() {
     setIsHoldingButton(false);
   };
 
-  // Keyboard support (Space bar)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.code === 'Space' && !e.repeat && !isHoldingButton) {

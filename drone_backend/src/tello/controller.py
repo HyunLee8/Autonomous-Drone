@@ -163,7 +163,7 @@ class TelloController:
         
         try:
             self.drone.takeoff()
-            self.drone.move_up(80)
+            #self.drone.move_up(80)
             self.is_flying = True
             self.flight_stats['start_time'] = time.time()
             logger.info("Drone took off")

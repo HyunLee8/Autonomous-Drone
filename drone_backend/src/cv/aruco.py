@@ -18,15 +18,12 @@ class ArucoDetector:
         corners, ids, _ = self.detector.detectMarkers(gray)
 
         if ids is not None and target_marker_id in ids:
-            # Find the target marker
             idx = np.where(ids == target_marker_id)[0][0]
             corner = corners[idx][0]
             
-            # Calculate center
             center_x = np.mean(corner[:, 0]) / frame.shape[1]
             center_y = np.mean(corner[:, 1]) / frame.shape[0]
             
-            # Calculate size (area as percentage of frame)
             area = cv2.contourArea(corner)
             frame_area = frame.shape[0] * frame.shape[1]
             size = area / frame_area

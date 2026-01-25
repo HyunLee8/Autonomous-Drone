@@ -1,4 +1,4 @@
-from src.tello import FlightLogic, TelloController, get_head_detector  # Add get_head_detector
+from src.tello import FlightLogic, TelloController, get_head_detector
 from src.utils.llm_helper import initialize_tuner
 
 Flight_logic_instance = None

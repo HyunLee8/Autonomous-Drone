@@ -13,7 +13,6 @@ export async function POST(request: Request) {
     outputFormat: 'mp3_44100_128',
   });
 
-  // Convert stream to buffer for response
   const chunks: Uint8Array[] = [];
   const reader = audio.getReader();
   

@@ -26,7 +26,6 @@ def video_feed():
     print(f"Active threads: {threading.active_count()}")  # Debug
     print(f"Tracking started: {tracking_started}") 
     
-    # Start tracking in background if not already started
     if not tracking_started:
         stop_flag.clear()  # Ensure stop flag is cleared
         tracking_started = True

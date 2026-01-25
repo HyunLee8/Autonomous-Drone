@@ -15,7 +15,6 @@ def process_request():
     """Process LLM request (audio or text)"""
     print("\n=== LLM REQUEST RECEIVED ===")
     
-    # Handle audio transcription
     if 'audio' in request.files:
         print("Processing audio file...")
         audio_file = request.files['audio']
@@ -25,7 +24,6 @@ def process_request():
         print(f"Result from process_audio_request: {result}")
         return jsonify(result)
     
-    # Handle text input
     elif request.json and 'text' in request.json:
         print("Processing text input...")
         text = request.json['text']
