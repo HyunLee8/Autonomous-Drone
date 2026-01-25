@@ -15,7 +15,9 @@ export default function Home() {
 
     try {
       fetch('http://127.0.0.1:5000/api/takeoff', { method: 'POST' });
-      fetch('http://127.0.0.1:5000/api/start-tracking', { method: 'POST' });
+      setTimeout(() => {
+        fetch('http://127.0.0.1:5000/api/start-tracking', { method: 'POST' });
+      }, 100); 
       setCurrentMessage('Preparing for takeoff...')
       await SpeakWithElevenLabs('Preparing for takeoff...');
     } catch (err) {
@@ -35,8 +37,9 @@ export default function Home() {
         <Link href="resources" className="font-bold">Resources</Link>
         <Link href="demos" className="font-bold">Demos</Link>
         <Link href="live-feed" className="font-bold">Live Feed</Link>
-        <button onClick={killSwitch} className="font-bold cursor-pointer">Kill Switch</button>
+        <button onClick={killSwitch} className="font-bold cursor-pointer">Land Drone</button>
       </div>
+      <button onClick={killSwitch} className="fixed bottom-5 left-5 font-bold text-l">Fail Safe</button>
       <h1 className="fixed top-5 right-5 text-6xl">GAZER</h1>
       <h2 className="fixed bottom-5 right-5 text-l">Developed by Isaac Lee and Aryan Thind</h2>
       <h2 className="fixed top-5 left-5 text-xl">2026 Hoya Hacks at</h2>

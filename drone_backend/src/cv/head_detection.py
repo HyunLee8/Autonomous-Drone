@@ -1,19 +1,25 @@
 import cv2
 import numpy as np
-import mediapipe as mp
+from ultralytics import YOLO
 import os
-from src.tello import get_drone
+import time
+from collections import deque
 
 class HeadDetector:
-    def __init__(self, model_path=None):
+    def __init__(self, model_path=None, drone=None):
+        """
+        Initialize YOLO-based head detector using pose estimation
+        model_path: Path to YOLO pose model (e.g., 'yolov8n-pose.pt')
+                   If None, will download YOLOv8n-pose automatically
+        """
         if model_path is None:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(current_dir, 'face_landmarker.task')
-
+            model_path = os.path.expanduser('~/.ultralytics/weights/yolov8n-pose.pt')
+        self.drone = drone
         self.model_path = model_path
         self.frame_count = 0
-        self._initialize_mediapipe()
-        self.tello_controller = get_drone
+        self._initialize_yolo()
+        
+        # Direction flags
         self.left = False
         self.right = False
         self.up = False
@@ -21,312 +27,402 @@ class HeadDetector:
         self.forward = False
         self.backward = False
         self.center = False
-
+        
+        # Velocity attributes with smoothing
         self.lr_velocity = 0
         self.fb_velocity = 0
         self.ud_velocity = 0
         self.yaw_velocity = 0
+        
+        # Smoothing buffers for stable tracking
+        self.position_buffer = deque(maxlen=5)
+        self.size_buffer = deque(maxlen=5)
+        
+        # Performance optimizations
+        self.skip_frames = 2  # Process every Nth frame
+        self.current_frame_skip = 0
+        self.last_detection = None
+        
+        # Velocity smoothing
+        self.velocity_alpha = 0.3  # Exponential smoothing factor
+        
+        # ===== HEAD SIZE THRESHOLDS - ADJUST THESE =====
+        # These control when drone moves forward/backward based on head size in pixels
+        self.head_size_forward_threshold = 100   # Move forward if head smaller than this
+        self.head_size_backward_threshold = 125  # Move backward if head larger than this
+        # Optimal range: head should be between these two values
+        # Increase both if you want drone to stay further away
+        # Decrease both if you want drone to stay closer
 
-    def _initialize_mediapipe(self):
-        # Add this debug line
-        print(f"Loading model from: {self.model_path}")
-        print(f"Model exists: {os.path.exists(self.model_path)}")
+    def _initialize_yolo(self):
+        """Initialize YOLO pose model for head detection"""
+        print(f"Loading YOLO pose model: {self.model_path}")
+        self.model = YOLO(self.model_path)
+        # Set model to half precision for speed on compatible hardware
+        self.model.fuse()
+        print("YOLO pose model loaded successfully")
 
-        mp.tasks = mp.tasks
-        BaseOptions = mp.tasks.BaseOptions
-        FaceLandmarker = mp.tasks.vision.FaceLandmarker
-        FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
-        VisionRunningMode = mp.tasks.vision.RunningMode
+    def _smooth_position(self, x, y, size):
+        """Apply temporal smoothing to reduce jitter"""
+        self.position_buffer.append((x, y))
+        self.size_buffer.append(size)
+        
+        if len(self.position_buffer) < 3:
+            return x, y, size
+        
+        # Weighted average - more weight to recent positions
+        weights = np.array([0.2, 0.3, 0.5])
+        positions = np.array(list(self.position_buffer)[-3:])
+        sizes = np.array(list(self.size_buffer)[-3:])
+        
+        smooth_x = int(np.average(positions[:, 0], weights=weights))
+        smooth_y = int(np.average(positions[:, 1], weights=weights))
+        smooth_size = int(np.average(sizes, weights=weights))
+        
+        return smooth_x, smooth_y, smooth_size
 
-        options = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=self.model_path),
-            running_mode=VisionRunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        self.landmarker = FaceLandmarker.create_from_options(options)
+    def _smooth_velocity(self, target_velocity, current_velocity):
+        """Smooth velocity changes to prevent jerky movements"""
+        return self.velocity_alpha * target_velocity + (1 - self.velocity_alpha) * current_velocity
 
-    def drone_directions(self, x, y, frame_width, frame_height, face_size, forward_threshold=300, backward_threshold=350):
-        if x < frame_width // 3 and y < frame_height // 3:
-            if face_size < forward_threshold:
-                self.up, self.left, self.forward = True, True, True
-                self.down, self.right, self.backward, self.center = False, False, False, False
-            elif face_size > backward_threshold:
-                self.up, self.left, self.backward = True, True, True
-                self.down, self.right, self.forward, self.center = False, False, False, False
+    def drone_directions(self, x, y, frame_width, frame_height, face_size):
+        """Determine drone movement directions with optimized logic"""
+        center_x = frame_width // 2
+        center_y = frame_height // 2
+        distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+        
+        deadzone_radius = frame_width // 12  # MUCH SMALLER deadzone (was // 4)
+        
+        # Reset all directions
+        self.left = self.right = self.up = self.down = False
+        self.forward = self.backward = self.center = False
+        
+        # Calculate target velocities
+        target_yaw = 0
+        target_ud = 0
+        target_fb = 0
+        
+        # Calculate optimal head size (middle of the range)
+        optimal_size = (self.head_size_forward_threshold + self.head_size_backward_threshold) / 2
+        size_range = self.head_size_backward_threshold - self.head_size_forward_threshold
+        
+        if distance_from_center < deadzone_radius:
+            self.center = True
+            # CRITICAL FIX: Set velocities to ZERO when centered
+            target_yaw = 0
+            target_ud = 0
+            
+            # Gradual speed control based on distance from optimal size
+            if face_size < self.head_size_forward_threshold:
+                self.forward = True
+                # Calculate how far from threshold (0.0 to 1.0)
+                distance_from_threshold = (self.head_size_forward_threshold - face_size) / self.head_size_forward_threshold
+                # Speed ranges from 5 (close to threshold) to 20 (far from threshold)
+                target_fb = int(5 + (15 * min(distance_from_threshold, 1.0)))
+            elif face_size > self.head_size_backward_threshold:
+                self.backward = True
+                # Calculate how far over threshold (0.0 to 1.0)
+                distance_from_threshold = (face_size - self.head_size_backward_threshold) / self.head_size_backward_threshold
+                # Speed ranges from -5 (close to threshold) to -20 (far from threshold)
+                target_fb = -int(5 + (15 * min(distance_from_threshold, 1.0)))
             else:
-                self.up, self.left = True, True
-                self.down, self.right, self.backward, self.forward, self.center = False, False, False, False, False
-        elif x > frame_width // 3 and x < (frame_width // 3) * 2 and y < frame_height // 3:
-            if face_size < forward_threshold:
-                self.up, self.forward = True, True
-                self.down, self.left, self.right, self.backward, self.center = False, False, False, False, False
-            elif face_size > backward_threshold:
-                self.up, self.backward = True, True
-                self.down, self.left, self.right, self.forward, self.center = False, False, False, False, False
-            else:
-                self.up = True
-                self.down, self.left, self.right, self.backward, self.forward, self.center = False, False, False, False, False, False
-        elif x > (frame_width // 3) * 2 and y < frame_height // 3:
-            if face_size < forward_threshold:
-                self.up, self.right, self.forward = True, True, True
-                self.down, self.left, self.backward, self.center = False, False, False, False
-            elif face_size > backward_threshold:
-                self.up, self.right, self.backward = True, True, True
-                self.down, self.left, self.forward, self.center = False, False, False, False
-            else:
-                self.up, self.right = True, True
-                self.down, self.left, self.backward, self.center, self.forward = False, False, False, False, False
-        elif x < frame_width // 3 and y > frame_height // 3 and y < (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.left, self.forward = True, True
-                self.right, self.center, self.up, self.down, self.backward = False, False, False, False, False
-            elif face_size > backward_threshold:
-                self.left, self.backward = True, True
-                self.right, self.center, self.up, self.down, self.forward = False, False, False, False, False
-            else:
-                self.left = True
-                self.right, self.center, self.up, self.down, self.backward, self.forward = False, False, False, False, False, False
-        elif x > frame_width // 3 and x < (frame_width // 3) * 2 and y > frame_height // 3 and y < (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.center, self.forward = True, True
-                self.left, self.right, self.up, self.down, self.backward = False, False, False, False, False
-            elif face_size > backward_threshold:
-                self.center, self.backward = True, True
-                self.left, self.right, self.up, self.down, self.forward = False, False, False, False, False
-            else:
-                self.center = True
-                self.left, self.right, self.up, self.down, self.backward, self.forward = False, False, False, False, False, False
-        elif x > (frame_width // 3) * 2 and y > frame_height // 3 and y < (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.right, self.forward = True, True
-                self.left, self.center, self.up, self.down, self.backward = False, False, False, False, False
-            elif face_size > backward_threshold:
-                self.right, self.backward = True, True
-                self.left, self.center, self.up, self.down, self.forward = False, False, False, False, False
-            else:
-                self.right = True
-                self.left, self.center, self.up, self.down, self.backward, self.forward = False, False, False, False, False, False
-        elif x < frame_width // 3 and y > (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.down, self.left, self.forward = True, True, True
-                self.up, self.right, self.backward, self.center = False, False, False, False
-            elif face_size > backward_threshold:
-                self.down, self.left, self.backward = True, True, True
-                self.up, self.right, self.forward, self.center = False, False, False, False
-            else:
-                self.down, self.left = True, True
-                self.up, self.right, self.backward, self.center, self.forward = False, False, False, False, False
-        elif x > frame_width // 3 and x < (frame_width // 3) * 2 and y > (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.down, self.forward = True, True
-                self.up, self.left, self.right, self.backward, self.center = False, False, False, False, False
-            elif face_size > backward_threshold:
-                self.down, self.backward = True, True
-                self.up, self.left, self.right, self.forward, self.center = False, False, False, False, False
-            else:
-                self.down = True
-                self.up, self.left, self.right, self.backward, self.center, self.forward = False, False, False, False, False, False
-        elif x > (frame_width // 3) * 2 and y > (frame_height // 3) * 2:
-            if face_size < forward_threshold:
-                self.down, self.right, self.forward = True, True, True
-                self.up, self.left, self.backward, self.center = False, False, False, False
-            elif face_size > backward_threshold:
-                self.down, self.right, self.backward = True, True, True
-                self.up, self.left, self.forward, self.center = False, False, False, False
-            else:
-                self.down, self.right = True, True
-                self.up, self.left, self.backward, self.center, self.forward = False, False, False, False, False
+                # CRITICAL FIX: Stop forward/backward when size is in range
+                target_fb = 0
+        else:
+            # Outside deadzone - proportional control
+            intensity = min(distance_from_center / deadzone_radius, 2.0)
+            
+            # Horizontal (yaw) control
+            dx = x - center_x
+            if abs(dx) > 20:
+                if dx < 0:
+                    self.left = True
+                    target_yaw = -int(20 * min(intensity, 1.5))
+                else:
+                    self.right = True
+                    target_yaw = int(20 * min(intensity, 1.5))
+            
+            # Vertical control
+            dy = y - center_y
+            if abs(dy) > 20:
+                if dy < 0:
+                    self.up = True
+                    target_ud = int(20 * min(intensity, 1.5))
+                else:
+                    self.down = True
+                    target_ud = -int(20 * min(intensity, 1.5))
+            
+            # Gradual forward/backward based on size (same logic as centered)
+            if face_size < self.head_size_forward_threshold:
+                self.forward = True
+                distance_from_threshold = (self.head_size_forward_threshold - face_size) / self.head_size_forward_threshold
+                target_fb = int(5 + (15 * min(distance_from_threshold, 1.0)))
+            elif face_size > self.head_size_backward_threshold:
+                self.backward = True
+                distance_from_threshold = (face_size - self.head_size_backward_threshold) / self.head_size_backward_threshold
+                target_fb = -int(5 + (15 * min(distance_from_threshold, 1.0)))
+        
+        # Smooth velocity transitions
+        self.yaw_velocity = int(self._smooth_velocity(target_yaw, self.yaw_velocity))
+        self.ud_velocity = int(self._smooth_velocity(target_ud, self.ud_velocity))
+        self.fb_velocity = int(self._smooth_velocity(target_fb, self.fb_velocity))
+        
+        # CRITICAL FIX: Force velocities to zero if they're very small
+        # This prevents drift when centered
+        if abs(self.yaw_velocity) < 3:
+            self.yaw_velocity = 0
+        if abs(self.ud_velocity) < 3:
+            self.ud_velocity = 0
+        if abs(self.fb_velocity) < 3:
+            self.fb_velocity = 0
 
     def FoundHead(self, frame):
+        """Quick check if a head is detected - optimized version"""
         try:
-            rbg_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rbg_frame)
-            self.frame_count += 1
-            results = self.landmarker.detect_for_video(mp_image, self.frame_count)
-            return len(results.face_landmarks) > 0
+            # Use lower resolution for quick check
+            small_frame = cv2.resize(frame, (320, 240))
+            results = self.model(small_frame, verbose=False, conf=0.3, imgsz=320)
+            
+            if results[0].keypoints is not None and len(results[0].keypoints) > 0:
+                return True
+            return False
         except Exception as e:
             print(f'Error in FoundHead: {e}')
             return False
 
     def run_head_detection(self, frame_callback=None, stop_flag=None, send_commands=False):
-        print("Initializing MediaPipe...")
-        drone = get_drone()
+        """Main detection loop - optimized version"""
+        print("Initializing YOLO pose detection...")
+        drone = self.drone
 
-        BaseOptions = mp.tasks.BaseOptions
-        FaceLandmarker = mp.tasks.vision.FaceLandmarker
-        FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
-        VisionRunningMode = mp.tasks.vision.RunningMode
-        model_path = self.model_path
-                # Use Tello camera if drone exists, otherwise webcam
+        cap = None
+
         if drone is not None:
             print("Using Tello camera...")
+            print("Waiting for drone video stream...")
+            
+            timeout = 10
+            start_time = time.time()
+            first_frame = None
+            
+            while first_frame is None and time.time() - start_time < timeout:
+                first_frame = drone.get_frame()
+                if first_frame is None:
+                    time.sleep(0.1)
+            
+            if first_frame is None:
+                print("Error: Could not get video stream from drone")
+                return
+            
+            print("Drone video stream ready!")
+            
             def get_frame():
                 return drone.get_frame()
-            cap = None
         else:
             print("Opening webcam...")
             cap = cv2.VideoCapture(0)
             if not cap.isOpened():
                 print('Error: Could not open camera.')
                 return
+            # Set camera resolution for better performance
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            
             def get_frame():
                 ret, frame = cap.read()
                 return frame if ret else None
 
-        options = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=model_path),
-            running_mode=VisionRunningMode.VIDEO,
-            num_faces=1,
-            min_face_detection_confidence=0.5,
-            min_face_presence_confidence=0.5,
-            min_tracking_confidence=0.5
-        )
-        with FaceLandmarker.create_from_options(options) as landmarker:
-            print("Starting detection loop... Press 'q' to quit")
+        print("Starting detection loop... Press 'q' to quit")
 
-            frame_count = 0
-            try:
-                while True:
-                    if stop_flag and stop_flag.is_set():  # ← Checks flag every iteration
-                        break 
-                    frame = get_frame()
-                    if frame is None:
-                        print('Error: Could not read frame.')
-                        break
+        fps_time = time.time()
+        fps_counter = 0
+        current_fps = 0
 
-                    h, w, _ = frame.shape
-                    x_center = w // 2
-                    y_center = h // 2
-                    radius = h // 2
+        try:
+            while True:
+                if stop_flag and stop_flag.is_set():
+                    break 
+                    
+                frame = get_frame()
+                if frame is None:
+                    print('Error: Could not read frame.')
+                    break
 
-                    square_frame = frame[0:h, x_center - radius : x_center + radius]
+                # FPS calculation
+                fps_counter += 1
+                if time.time() - fps_time > 1:
+                    current_fps = fps_counter
+                    fps_counter = 0
+                    fps_time = time.time()
 
-                    new_h, new_w, _ = square_frame.shape
+                h, w, _ = frame.shape
+                x_center = w // 2
+                y_center = h // 2
+                radius = h // 2
 
-                    x1, x2 = int(new_w/3), int(new_w*2/3)
-                    y1, y2 = int(new_h/3), int(new_h*2/3)
-                    new_x_center, new_y_center = new_w // 2, new_h // 2
+                square_frame = frame[0:h, x_center - radius : x_center + radius]
+                new_h, new_w, _ = square_frame.shape
 
+                # Calculate center and deadzone
+                new_x_center, new_y_center = new_w // 2, new_h // 2
+                deadzone_radius = new_w // 8  # MUCH SMALLER deadzone (was // 4)
+                
+                # Draw grid lines - much more efficient than 9 rectangles
+                grid_color = (100, 100, 100)  # Subtle gray
+                x_third = new_w // 3
+                y_third = new_h // 3
+                
+                # Vertical lines
+                cv2.line(square_frame, (x_third, 0), (x_third, new_h), grid_color, 1)
+                cv2.line(square_frame, (x_third * 2, 0), (x_third * 2, new_h), grid_color, 1)
+                
+                # Horizontal lines
+                cv2.line(square_frame, (0, y_third), (new_w, y_third), grid_color, 1)
+                cv2.line(square_frame, (0, y_third * 2), (new_w, y_third * 2), grid_color, 1)
+                
+                # Draw circular deadzone (the actual tracking zone)
+                cv2.circle(square_frame, (new_x_center, new_y_center), deadzone_radius, (0, 255, 255), 2)
+                
+                # Draw center point
+                cv2.circle(square_frame, (new_x_center, new_y_center), 5, (0, 255, 255), -1)
+                
+                # Optional: Draw tracking zones
+                # Inner zone (centered - no movement)
+                cv2.circle(square_frame, (new_x_center, new_y_center), deadzone_radius, (0, 255, 0), 1)
+                # Outer boundary
+                cv2.rectangle(square_frame, (0, 0), (new_w-1, new_h-1), (255, 255, 255), 2)
+                
+                control_values = {'face_detected': False}
+                head_detected = False
+                
+                # Frame skipping for performance - only process every Nth frame
+                self.current_frame_skip += 1
+                if self.current_frame_skip >= self.skip_frames or self.last_detection is None:
+                    self.current_frame_skip = 0
+                    
+                    # Run YOLO pose detection with optimized settings
+                    results = self.model(frame, verbose=False, conf=0.3, imgsz=640)
 
-                    #x cords
-                    x1, x2, x3, x4 = 0, x1, x2, new_w
-                    #y cords
-                    y1, y2, y3, y4 = 0, y1, y2, new_h
-
-                    #top left box
-                    cv2.rectangle(square_frame, (x1, y1), (x2, y2), (255, 255, 255), 2)
-                    #top middle box
-                    cv2.rectangle(square_frame, (x2, y1), (x3, y2), (255, 255, 255), 2)
-                    #top right box
-                    cv2.rectangle(square_frame, (x3, y1), (x4, y2), (255, 255, 255), 2)
-                    #middle left box
-                    cv2.rectangle(square_frame, (x1, y2), (x2, y3), (255, 255, 255), 2)
-                    #middle middle box
-                    cv2.rectangle(square_frame, (x2, y2), (x3, y3), (255, 255, 255), 2)
-                    #middle right box
-                    cv2.rectangle(square_frame, (x3, y2), (x4, y3), (255, 255, 255), 2)
-                    #bottom left box
-                    cv2.rectangle(square_frame, (x1, y3), (x2, y4), (255, 255, 255), 2)
-                    #bottom middle box
-                    cv2.rectangle(square_frame, (x2, y3), (x3, y4), (255, 255, 255), 2)
-                    #bottom right box
-                    cv2.rectangle(square_frame, (x3, y3), (x4, y4), (255, 255, 255), 2)
-
-                    cv2.circle(square_frame, (new_x_center, new_y_center), 20, (255, 255, 255), -1)
-
-                    frame_count += 1
-
-                    # Convert to RGB
-                    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
-                    results = landmarker.detect_for_video(mp_image, frame_count)
-
-                    # Initialize control values
-                    control_values = {
-                        #'lr_velocity': 0,      # left/right (not used, always 0)
-                        #'fb_velocity': 0,      # forward/backward
-                        #'ud_velocity': 0,      # up/down
-                        #'yaw_velocity': 0,     # rotation
-                        'face_detected': False
-                    }
-
-                    # Draw bounding box if face detected
-                    if results.face_landmarks:
-                        control_values['face_detected'] = True
-
-                        for face_landmarks in results.face_landmarks:
-                            # Get all x and y coordinates
-                            x_coords = [landmark.x * frame.shape[1] for landmark in face_landmarks]
-                            y_coords = [landmark.y * frame.shape[0] for landmark in face_landmarks]
-
-                            # Calculate bounding box
-                            x_min = int(min(x_coords))
-                            x_max = int(max(x_coords))
-                            y_min = int(min(y_coords))
-                            y_max = int(max(y_coords))
-                            x_head_center = (x_min + x_max) // 2
-                            y_head_center = (y_min + y_max) // 2
-
+                    if results[0].keypoints is not None and len(results[0].keypoints) > 0:
+                        keypoints = results[0].keypoints.xy[0].cpu().numpy()
+                        
+                        nose = keypoints[0]
+                        left_eye = keypoints[1]
+                        right_eye = keypoints[2]
+                        
+                        if nose[0] > 0 and nose[1] > 0:
+                            head_detected = True
+                            control_values['face_detected'] = True
+                            
+                            x_head_center = int(nose[0])
+                            y_head_center = int(nose[1])
+                            
+                            # Calculate head size
+                            if left_eye[0] > 0 and right_eye[0] > 0:
+                                eye_distance = np.sqrt((right_eye[0] - left_eye[0])**2 + 
+                                                      (right_eye[1] - left_eye[1])**2)
+                                head_width_multiplier = 2.0
+                                head_size = int(eye_distance * head_width_multiplier)
+                            else:
+                                head_size = 100
+                            
+                            # Apply smoothing
                             x_head_in_square = x_head_center - (x_center - radius)
                             y_head_in_square = y_head_center
+                            
+                            smooth_x, smooth_y, smooth_size = self._smooth_position(
+                                x_head_in_square, y_head_in_square, head_size
+                            )
+                            
+                            # Cache detection for frame skipping
+                            self.last_detection = {
+                                'x': x_head_center,
+                                'y': y_head_center,
+                                'x_square': smooth_x,
+                                'y_square': smooth_y,
+                                'size': smooth_size,
+                                'keypoints': keypoints
+                            }
+                else:
+                    # Use cached detection for skipped frames
+                    if self.last_detection:
+                        head_detected = True
+                        control_values['face_detected'] = True
+                        x_head_center = self.last_detection['x']
+                        y_head_center = self.last_detection['y']
+                        smooth_x = self.last_detection['x_square']
+                        smooth_y = self.last_detection['y_square']
+                        smooth_size = self.last_detection['size']
+                        keypoints = self.last_detection['keypoints']
 
-                            # Draw rectangle around face
-                            cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (255, 255, 255), 2)
-                            cv2.circle(frame, (x_head_center, y_head_center), 5, (255, 255, 255), -1)
-                            cv2.line(frame, (x_head_center, y_head_center), (x_center, y_center), (0, 0, 0), 2)
+                # Draw visualization (only if detected)
+                if head_detected and self.last_detection:
+                    half_size = smooth_size // 2
+                    x_min = x_head_center - half_size
+                    x_max = x_head_center + half_size
+                    y_min = y_head_center - half_size
+                    y_max = y_head_center + half_size
+                    
+                    # Draw HEAD bounding box
+                    cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
+                    cv2.circle(frame, (x_head_center, y_head_center), 5, (0, 255, 0), -1)
+                    cv2.line(frame, (x_head_center, y_head_center), (x_center, y_center), (0, 255, 0), 2)
+                    
+                    # Draw keypoints (only face keypoints for efficiency)
+                    for kp in keypoints[:5]:
+                        if kp[0] > 0 and kp[1] > 0:
+                            cv2.circle(frame, (int(kp[0]), int(kp[1])), 3, (255, 0, 0), -1)
 
-                            #Drone Direction Logic
-                            x_error = x_head_in_square - new_x_center
-                            y_error = y_head_in_square - new_y_center
-                            yaw_velocity = 0
-                            ud_velocity = 0
-                            fb_velocity = 0
-                            directions = self.drone_directions(x_head_in_square, y_head_in_square, new_w, new_h, x_max-x_min)
-                            if self.center:
-                                yaw_velocity = 0
-                                ud_velocity = 0
-                                print("centered")
-                            if self.left:
-                                yaw_velocity = -30
-                                print("turning left")
-                            elif self.right:
-                                lr_velocity = 30
-                                print("turning right")
-                            if self.up:
-                                ud_velocity = 30
-                                print("going up")
-                            elif self.down:
-                                ud_velocity = -30
-                                print("going down")
-                            if self.forward:
-                                fb_velocity = 30
-                                print("going forward")
-                            elif self.backward:
-                                fb_velocity = -30
-                                print("going backward")
+                    # Drone Direction Logic
+                    self.drone_directions(smooth_x, smooth_y, new_w, new_h, smooth_size)
+                    
+                    # Status text with velocities
+                    status_text = []
+                    if self.center:
+                        status_text.append("CENTERED")
+                    if self.left:
+                        status_text.append(f"LEFT (yaw:{self.yaw_velocity})")
+                    if self.right:
+                        status_text.append(f"RIGHT (yaw:{self.yaw_velocity})")
+                    if self.up:
+                        status_text.append(f"UP (ud:{self.ud_velocity})")
+                    if self.down:
+                        status_text.append(f"DOWN (ud:{self.ud_velocity})")
+                    if self.forward:
+                        status_text.append(f"FWD (fb:{self.fb_velocity})")
+                    if self.backward:
+                        status_text.append(f"BACK (fb:{self.fb_velocity})")
+                    
+                    cv2.putText(frame, f"Head: {smooth_size}px | {' | '.join(status_text)}", 
+                               (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                else:
+                    # Reset velocities when no detection
+                    self.fb_velocity = 0
+                    self.ud_velocity = 0
+                    self.yaw_velocity = 0
+                    cv2.putText(frame, "No head detected", (10, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                            cv2.putText(frame, "Face detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-                    else:
-                        cv2.putText(frame, "No face detected", (10, 30), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+                # Display FPS
+                cv2.putText(frame, f"FPS: {current_fps}", (10, 60), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 
-                    if frame_callback:
-                        frame_callback(square_frame, control_values)
-                    #cv2.imshow('Head Detection', square_frame)
-
-                    if cv2.waitKey(1) & 0xFF == ord('q'):
-                        break     
-            except Exception as e:
-                print(f'An error occurred: {e}')
-                import traceback
-                traceback.print_exc()
-            finally:
+                if frame_callback:
+                    frame_callback(square_frame, control_values)
+                
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break     
+                    
+        except Exception as e:
+            print(f'An error occurred: {e}')
+            import traceback
+            traceback.print_exc()
+        finally:
+            if cap:
                 cap.release()
-                cv2.destroyAllWindows()
-                print('Camera now closed')
+            cv2.destroyAllWindows()
+            print('Camera now closed')
 
 if __name__ == "__main__":
     detector = HeadDetector()
+    detector.run_head_detection()

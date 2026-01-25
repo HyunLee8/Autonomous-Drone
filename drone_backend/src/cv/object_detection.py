@@ -32,4 +32,4 @@ def run_model(object_num=0, conf_threshold=0.5):
         print('camera now closed')
     
 if __name__ == "__main__":
-    run_model(conf_threshold=0.5))
+    run_model(conf_threshold=0.5)

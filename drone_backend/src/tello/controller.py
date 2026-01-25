@@ -2,10 +2,8 @@
 Advanced Tello Drone Controller
 Handles all drone operations with advanced features like smooth tracking,
 safety checks, command queuing, and PID control for stable movements.
-
-CREDITS TO SONNET 4.5 Anthropic for PID controls
 """
-from drone_backend.src.cv.head_detection import HeadDetector
+from src.cv.head_detection import HeadDetector
 from djitellopy import Tello
 import time
 import logging

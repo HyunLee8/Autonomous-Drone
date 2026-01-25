@@ -1,20 +1,42 @@
 from src.tello import TelloController
+from src.cv import HeadDetector
 from src import utils
 import time
 import logging
+import threading
 
 logger = logging.getLogger(__name__)
 drone = None
+head_detector = None
+_init_lock = threading.Lock()
+_initialized = False
+
+def ensure_initialized():
+    global drone, head_detector, _initialized
+    
+    with _init_lock:
+        if not _initialized:
+            print("Initializing drone and detector...")
+            drone = TelloController()
+            head_detector = HeadDetector(drone=drone)
+            _initialized = True
+    
+    return drone, head_detector
 
 def get_drone():
+    ensure_initialized()
     return drone
-    
+
+def get_head_detector():
+    ensure_initialized()
+    return head_detector
+
 class FlightLogic:
-    
     def __init__(self):
-        self.drone = TelloController()
-        self.aruco_detector = ArucoDetector()
-        self.head_detector = HeadDetector(drone_controller=self.drone)
+        ensure_initialized()
+        self.drone = get_drone()
+        self.head_detector = get_head_detector()
+        self.running = True
 
         #phases
         self.phase = "IDLE"
@@ -39,10 +61,10 @@ class FlightLogic:
             #    return False
 
             #Phase 3
-            self.phase = "SEARCHING"
-            if not self._search_for_face():
-                self.drone.land()
-                return False  
+            #self.phase = "SEARCHING"
+            #if not self._search_for_face():
+            #    self.drone.land()
+            #    return False  
 
             #Phase 4
             self.phase = "TRACKING"
@@ -60,13 +82,15 @@ class FlightLogic:
         if not self.drone.connect():
             logger.error("Failed to connect to drone.")
             return False
-
+        
         logger.info("starting video stream...")
         if not self.drone.stream_on():
             logger.error("Failed to start video stream.")
             return False
-
-        time.sleep(1)
+        
+        if not self.drone.wait_for_stream(timeout=10):
+            logger.error("Video stream not ready.")
+            return False
 
         logger.info("Taking off...")
         if not self.drone.takeoff():
@@ -93,41 +117,33 @@ class FlightLogic:
                 logger.info("Face found!")
                 self.face_found = True
                 return True
-
+    
             logger.info(f"No face detected, rotating {rotation_step}°...")
             self.drone.rotate_clockwise(rotation_step)
             total_rotation += rotation_step
             time.sleep(1)
-
+        
         self.drone.emergency_land()
         logger.error("Failed to find face within timeout.")
         return False
 
     def _track_face(self):
         logger.info("Tracking face...")
-
-        def frame_callback(frame, control_values):
-            """Receive frame and control values, send commands to drone"""
-            # You can add custom logic here before sending commands
-            if control_values['face_detected']:
-                # Send the commands to drone
-                self.drone.send_rc_control(
-                    head_model.lr_velocity,
-                    head_model.fb_velocity,
-                    head_model.ud_velocity,
-                    head_model.yaw_velocity
-                )
-            else:
-                # No face detected - hover in place
-                self.drone.send_rc_control(0, 0, 0, 0)
-
-        # Run detection WITHOUT sending commands directly
-        self.head_detector.run_head_detection(
-            frame_callback=frame_callback,
-            send_commands=False  # FlightLogic controls when to send
-        )
-
+        while self.running:
+            self.drone.send_rc_control(
+                head_detector.lr_velocity,
+                head_detector.fb_velocity,
+                head_detector.ud_velocity,
+                head_detector.yaw_velocity
+            )
+            
+            time.sleep(0.1)
+        
+        logger.info("Tracking stopped")
+    
     def stop(self):
         logger.info("Stopping flight logic and landing drone...")
+        self.running = False 
         self.phase = "IDLE"
+        time.sleep(0.2)
         self.drone.land()
