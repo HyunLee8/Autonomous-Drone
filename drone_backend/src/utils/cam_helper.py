@@ -41,6 +41,7 @@ def run_detection():
                 'center': head_model.center,
                 'face_detected': control_values['face_detected']    
             })
+            
     head_model.run_head_detection(frame_callback=combined_callback, stop_flag=stop_flag)
 
 #def run_flight_logic():

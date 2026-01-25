@@ -27,23 +27,27 @@ def get_agent_response(user_req):
         response = client.models.generate_content(
             model='gemini-1.5-flash',
             contents=full_prompt,
-            config=genai.GenerateContentConfig(
-                response_mime_type="application/json",
+            config=genai.types.GenerateContentConfig(
+                response_mime_type='application/json',
             )
         )
         
         # Parse and return the JSON response
         data = json.loads(response.text)
+        print(f"✅ LLM Response: {data}")
         return data
         
     except json.JSONDecodeError as e:
-        print(f"JSON decode error: {e}")
+        print(f"❌ JSON decode error: {e}")
+        print(f"Raw response: {response.text if 'response' in locals() else 'No response'}")
         return {
             "response": "I encountered an error parsing the response.",
             "actions": []
         }
     except Exception as e:
-        print(f"Error in get_agent_response: {e}")
+        print(f"❌ Error in get_agent_response: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "response": "I encountered an error processing your request.",
             "actions": []

@@ -13,19 +13,29 @@ llm_bp = Blueprint('llm', __name__)
 @llm_bp.route('/api/llm', methods=['POST'])
 def process_request():
     """Process LLM request (audio or text)"""
+    print("\n=== LLM REQUEST RECEIVED ===")
     
     # Handle audio transcription
     if 'audio' in request.files:
+        print("Processing audio file...")
         audio_file = request.files['audio']
+        print(f"Audio file: {audio_file.filename}, size: {audio_file.content_length}")
+        
         result = process_audio_request(audio_file)
+        print(f"Result from process_audio_request: {result}")
         return jsonify(result)
     
     # Handle text input
     elif request.json and 'text' in request.json:
+        print("Processing text input...")
         text = request.json['text']
+        print(f"Text: {text}")
+        
         result = process_text_request(text)
+        print(f"Result from process_text_request: {result}")
         return jsonify(result)
     
+    print("ERROR: No audio or text provided")
     return jsonify({
         'error': 'No audio file or text provided',
         'success': False
