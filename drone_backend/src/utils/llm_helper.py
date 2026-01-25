@@ -313,9 +313,7 @@ def initialize_tuner(head_detector):
         print("DEBUG: Setting _initialization_complete event")
         _initialization_complete.set()
         print("DEBUG: _initialization_complete event set")
-        
-    print(f"✅ Tuner initialized with thresholds: Forward={head_detector.head_size_forward_threshold}, Backward={head_detector.head_size_backward_threshold}")
-
+    
 def process_audio_request(audio_file):
     """Process audio file and apply LLM tuning"""
     global parameter_tuner, current_llm_data, tuner_lock
@@ -391,7 +389,6 @@ def process_audio_request(audio_file):
             }
             
     except Exception as e:
-        print(f"❌ Error processing audio: {e}")
         import traceback
         traceback.print_exc()
         return {

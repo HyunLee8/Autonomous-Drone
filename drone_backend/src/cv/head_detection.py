@@ -27,38 +27,26 @@ class HeadDetector:
         self.forward = False
         self.backward = False
         self.center = False
-        
-        # Velocity attributes with smoothing
         self.lr_velocity = 0
         self.fb_velocity = 0
         self.ud_velocity = 0
         self.yaw_velocity = 0
-        
-        # Smoothing buffers for stable tracking
         self.position_buffer = deque(maxlen=5)
         self.size_buffer = deque(maxlen=5)
-        
-        # Performance optimizations
-        self.skip_frames = 2  # Process every Nth frame
+        self.skip_frames = 2
         self.current_frame_skip = 0
         self.last_detection = None
+    
+        self.velocity_alpha = 0.3 
         
-        # Velocity smoothing
-        self.velocity_alpha = 0.3  # Exponential smoothing factor
-        
-        # ===== HEAD SIZE THRESHOLDS - ADJUST THESE =====
-        # These control when drone moves forward/backward based on head size in pixels
-        self.head_size_forward_threshold = 100   # Move forward if head smaller than this
-        self.head_size_backward_threshold = 125  # Move backward if head larger than this
-        # Optimal range: head should be between these two values
-        # Increase both if you want drone to stay further away
-        # Decrease both if you want drone to stay closer
+
+        self.head_size_forward_threshold = 100  
+        self.head_size_backward_threshold = 125 
 
     def _initialize_yolo(self):
         """Initialize YOLO pose model for head detection"""
         print(f"Loading YOLO pose model: {self.model_path}")
         self.model = YOLO(self.model_path)
-        # Set model to half precision for speed on compatible hardware
         self.model.fuse()
         print("YOLO pose model loaded successfully")
 
@@ -70,7 +58,6 @@ class HeadDetector:
         if len(self.position_buffer) < 3:
             return x, y, size
         
-        # Weighted average - more weight to recent positions
         weights = np.array([0.2, 0.3, 0.5])
         positions = np.array(list(self.position_buffer)[-3:])
         sizes = np.array(list(self.size_buffer)[-3:])
@@ -91,48 +78,36 @@ class HeadDetector:
         center_y = frame_height // 2
         distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
         
-        deadzone_radius = frame_width // 12  # MUCH SMALLER deadzone (was // 4)
-        
-        # Reset all directions
+        deadzone_radius = frame_width // 12 
+    
         self.left = self.right = self.up = self.down = False
         self.forward = self.backward = self.center = False
         
-        # Calculate target velocities
         target_yaw = 0
         target_ud = 0
         target_fb = 0
         
-        # Calculate optimal head size (middle of the range)
         optimal_size = (self.head_size_forward_threshold + self.head_size_backward_threshold) / 2
         size_range = self.head_size_backward_threshold - self.head_size_forward_threshold
         
         if distance_from_center < deadzone_radius:
             self.center = True
-            # CRITICAL FIX: Set velocities to ZERO when centered
             target_yaw = 0
             target_ud = 0
             
-            # Gradual speed control based on distance from optimal size
             if face_size < self.head_size_forward_threshold:
                 self.forward = True
-                # Calculate how far from threshold (0.0 to 1.0)
                 distance_from_threshold = (self.head_size_forward_threshold - face_size) / self.head_size_forward_threshold
-                # Speed ranges from 5 (close to threshold) to 20 (far from threshold)
                 target_fb = int(5 + (15 * min(distance_from_threshold, 1.0)))
             elif face_size > self.head_size_backward_threshold:
                 self.backward = True
-                # Calculate how far over threshold (0.0 to 1.0)
                 distance_from_threshold = (face_size - self.head_size_backward_threshold) / self.head_size_backward_threshold
-                # Speed ranges from -5 (close to threshold) to -20 (far from threshold)
                 target_fb = -int(5 + (15 * min(distance_from_threshold, 1.0)))
             else:
-                # CRITICAL FIX: Stop forward/backward when size is in range
                 target_fb = 0
         else:
-            # Outside deadzone - proportional control
             intensity = min(distance_from_center / deadzone_radius, 2.0)
             
-            # Horizontal (yaw) control
             dx = x - center_x
             if abs(dx) > 20:
                 if dx < 0:
@@ -142,7 +117,6 @@ class HeadDetector:
                     self.right = True
                     target_yaw = int(20 * min(intensity, 1.5))
             
-            # Vertical control
             dy = y - center_y
             if abs(dy) > 20:
                 if dy < 0:
@@ -152,7 +126,6 @@ class HeadDetector:
                     self.down = True
                     target_ud = -int(20 * min(intensity, 1.5))
             
-            # Gradual forward/backward based on size (same logic as centered)
             if face_size < self.head_size_forward_threshold:
                 self.forward = True
                 distance_from_threshold = (self.head_size_forward_threshold - face_size) / self.head_size_forward_threshold
@@ -162,13 +135,12 @@ class HeadDetector:
                 distance_from_threshold = (face_size - self.head_size_backward_threshold) / self.head_size_backward_threshold
                 target_fb = -int(5 + (15 * min(distance_from_threshold, 1.0)))
         
-        # Smooth velocity transitions
+    
         self.yaw_velocity = int(self._smooth_velocity(target_yaw, self.yaw_velocity))
         self.ud_velocity = int(self._smooth_velocity(target_ud, self.ud_velocity))
         self.fb_velocity = int(self._smooth_velocity(target_fb, self.fb_velocity))
         
-        # CRITICAL FIX: Force velocities to zero if they're very small
-        # This prevents drift when centered
+    
         if abs(self.yaw_velocity) < 3:
             self.yaw_velocity = 0
         if abs(self.ud_velocity) < 3:
@@ -179,7 +151,6 @@ class HeadDetector:
     def FoundHead(self, frame):
         """Quick check if a head is detected - optimized version"""
         try:
-            # Use lower resolution for quick check
             small_frame = cv2.resize(frame, (320, 240))
             results = self.model(small_frame, verbose=False, conf=0.3, imgsz=320)
             
@@ -224,7 +195,6 @@ class HeadDetector:
             if not cap.isOpened():
                 print('Error: Could not open camera.')
                 return
-            # Set camera resolution for better performance
             cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
             cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
             
@@ -263,44 +233,36 @@ class HeadDetector:
                 square_frame = frame[0:h, x_center - radius : x_center + radius]
                 new_h, new_w, _ = square_frame.shape
 
-                # Calculate center and deadzone
-                new_x_center, new_y_center = new_w // 2, new_h // 2
-                deadzone_radius = new_w // 8  # MUCH SMALLER deadzone (was // 4)
-                
-                # Draw grid lines - much more efficient than 9 rectangles
-                grid_color = (100, 100, 100)  # Subtle gray
+=                new_x_center, new_y_center = new_w // 2, new_h // 2
+                deadzone_radius = new_w // 8 
+            
+                grid_color = (100, 100, 100)
                 x_third = new_w // 3
                 y_third = new_h // 3
                 
-                # Vertical lines
                 cv2.line(square_frame, (x_third, 0), (x_third, new_h), grid_color, 1)
                 cv2.line(square_frame, (x_third * 2, 0), (x_third * 2, new_h), grid_color, 1)
                 
-                # Horizontal lines
                 cv2.line(square_frame, (0, y_third), (new_w, y_third), grid_color, 1)
                 cv2.line(square_frame, (0, y_third * 2), (new_w, y_third * 2), grid_color, 1)
                 
-                # Draw circular deadzone (the actual tracking zone)
                 cv2.circle(square_frame, (new_x_center, new_y_center), deadzone_radius, (0, 255, 255), 2)
                 
-                # Draw center point
                 cv2.circle(square_frame, (new_x_center, new_y_center), 5, (0, 255, 255), -1)
                 
-                # Optional: Draw tracking zones
-                # Inner zone (centered - no movement)
+
                 cv2.circle(square_frame, (new_x_center, new_y_center), deadzone_radius, (0, 255, 0), 1)
-                # Outer boundary
+
                 cv2.rectangle(square_frame, (0, 0), (new_w-1, new_h-1), (255, 255, 255), 2)
                 
                 control_values = {'face_detected': False}
                 head_detected = False
-                
-                # Frame skipping for performance - only process every Nth frame
+            
                 self.current_frame_skip += 1
                 if self.current_frame_skip >= self.skip_frames or self.last_detection is None:
                     self.current_frame_skip = 0
                     
-                    # Run YOLO pose detection with optimized settings
+
                     results = self.model(frame, verbose=False, conf=0.3, imgsz=640)
 
                     if results[0].keypoints is not None and len(results[0].keypoints) > 0:
@@ -316,8 +278,7 @@ class HeadDetector:
                             
                             x_head_center = int(nose[0])
                             y_head_center = int(nose[1])
-                            
-                            # Calculate head size
+
                             if left_eye[0] > 0 and right_eye[0] > 0:
                                 eye_distance = np.sqrt((right_eye[0] - left_eye[0])**2 + 
                                                       (right_eye[1] - left_eye[1])**2)
@@ -326,7 +287,7 @@ class HeadDetector:
                             else:
                                 head_size = 100
                             
-                            # Apply smoothing
+  
                             x_head_in_square = x_head_center - (x_center - radius)
                             y_head_in_square = y_head_center
                             
@@ -334,7 +295,7 @@ class HeadDetector:
                                 x_head_in_square, y_head_in_square, head_size
                             )
                             
-                            # Cache detection for frame skipping
+
                             self.last_detection = {
                                 'x': x_head_center,
                                 'y': y_head_center,
@@ -344,7 +305,6 @@ class HeadDetector:
                                 'keypoints': keypoints
                             }
                 else:
-                    # Use cached detection for skipped frames
                     if self.last_detection:
                         head_detected = True
                         control_values['face_detected'] = True
@@ -354,8 +314,7 @@ class HeadDetector:
                         smooth_y = self.last_detection['y_square']
                         smooth_size = self.last_detection['size']
                         keypoints = self.last_detection['keypoints']
-
-                # Draw visualization (only if detected)
+     
                 if head_detected and self.last_detection:
                     half_size = smooth_size // 2
                     x_min = x_head_center - half_size
@@ -363,20 +322,16 @@ class HeadDetector:
                     y_min = y_head_center - half_size
                     y_max = y_head_center + half_size
                     
-                    # Draw HEAD bounding box
                     cv2.rectangle(frame, (x_min, y_min), (x_max, y_max), (0, 255, 0), 3)
                     cv2.circle(frame, (x_head_center, y_head_center), 5, (0, 255, 0), -1)
                     cv2.line(frame, (x_head_center, y_head_center), (x_center, y_center), (0, 255, 0), 2)
                     
-                    # Draw keypoints (only face keypoints for efficiency)
                     for kp in keypoints[:5]:
                         if kp[0] > 0 and kp[1] > 0:
                             cv2.circle(frame, (int(kp[0]), int(kp[1])), 3, (255, 0, 0), -1)
 
-                    # Drone Direction Logic
                     self.drone_directions(smooth_x, smooth_y, new_w, new_h, smooth_size)
                     
-                    # Status text with velocities
                     status_text = []
                     if self.center:
                         status_text.append("CENTERED")
@@ -396,14 +351,12 @@ class HeadDetector:
                     cv2.putText(frame, f"Head: {smooth_size}px | {' | '.join(status_text)}", 
                                (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                 else:
-                    # Reset velocities when no detection
                     self.fb_velocity = 0
                     self.ud_velocity = 0
                     self.yaw_velocity = 0
                     cv2.putText(frame, "No head detected", (10, 30), 
                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
-                # Display FPS
                 cv2.putText(frame, f"FPS: {current_fps}", (10, 60), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
 

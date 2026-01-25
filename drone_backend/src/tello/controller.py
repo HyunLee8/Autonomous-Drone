@@ -12,7 +12,6 @@ from queue import Queue
 from typing import Optional, Tuple, Callable
 import numpy as np
 
-# Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -71,12 +70,10 @@ class TelloController:
         self.pid_y = PIDController(kp=0.4, ki=0.0, kd=0.2)
         self.pid_z = PIDController(kp=0.3, ki=0.0, kd=0.15)
         
-        # Tracking state
         self.tracking_enabled = False
         self.last_track_time = 0
-        self.track_cooldown = 0.5  # seconds between tracking commands
-        
-        # State monitoring
+        self.track_cooldown = 0.5 
+    
         self.flight_stats = {
             'total_flight_time': 0,
             'commands_executed': 0,
@@ -89,27 +86,22 @@ class TelloController:
             self.drone = Tello()
             self.drone.connect()
             self.is_connected = True
-            # Get initial status
             battery = self.drone.get_battery()
             temp = self.drone.get_temperature()
             
             logger.info(f"Connected to Tello - Battery: {battery}%, Temp: {temp}°C")
             
-            # Check battery level
             if battery < self.min_battery:
                 logger.warning(f"Low battery: {battery}%. Consider charging before flight.")
             
-            # Start command processing thread
             self._start_command_thread()
             
             return True
         except Exception as e:
-            logger.error(f"Failed to connect to Tello: {e}")
             self.is_connected = False
             return False
     
     def disconnect(self):
-        """Safely disconnect from the Tello drone."""
         if self.is_flying:
             logger.info("Landing before disconnect...")
             self.land()
@@ -117,7 +109,6 @@ class TelloController:
         if self.is_streaming:
             self.stream_off()
         
-        # Stop command thread
         self.stop_thread = True
         if self.command_thread:
             self.command_thread.join(timeout=2)
@@ -132,21 +123,19 @@ class TelloController:
         self.command_thread.start()
     
     def _process_commands(self):
-        """Process commands from the queue in background thread."""
         while not self.stop_thread:
             try:
                 if not self.command_queue.empty():
                     command_func, args = self.command_queue.get(timeout=0.1)
                     command_func(*args)
                     self.flight_stats['commands_executed'] += 1
-                    time.sleep(0.1)  # Small delay between commands
+                    time.sleep(0.1) 
                 else:
                     time.sleep(0.05)
             except Exception as e:
                 logger.error(f"Error processing command: {e}")
     
     def _check_safety(self) -> bool:
-        """Check safety conditions before executing commands."""
         if not self.is_connected:
             logger.error("Drone not connected")
             return False
