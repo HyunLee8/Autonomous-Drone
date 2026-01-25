@@ -11,3 +11,5 @@ def stop_logic():
     global Flight_logic_instance
     if Flight_logic_instance and Flight_logic_instance.drone:
         Flight_logic_instance.drone.stop()
+    else:
+        print("No active drone to stop.")

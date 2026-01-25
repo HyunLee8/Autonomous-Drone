@@ -1,20 +1,13 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS                 #import for localHost3000 and localHost5000 communication
-from src.llm import get_agent_response, transcribe_audio
-from src.cv import run_head_detection
+from flask import Flask, jsonify, request, Response
+from flask_cors import CORS
+from src.api import cam_bp, llm_bp, tello_bp
 
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/api/process', methods=['POST'])
-def process_request():
-    if 'audio' in request.files:
-        audio_file = request.files['audio']
-        transcription = transcribe_audio(audio_file)
-    if not transcription:
-        return jsonify({'message': 'I didn\'t catch that. Could you please repeat?'})
-    message = get_agent_response(transcription)
-    return jsonify({'transcription': transcription, 'message': message})
+app.register_blueprint(cam_bp)
+app.register_blueprint(llm_bp)
+app.register_blueprint(tello_bp)
 
-def run_model():
-    run_head_detection()
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)

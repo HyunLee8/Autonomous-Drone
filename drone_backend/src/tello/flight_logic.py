@@ -108,10 +108,10 @@ class FlightLogic:
             if control_values['face_detected']:
                 # Send the commands to drone
                 self.drone.send_rc_control(
-                    control_values['lr_velocity'],
-                    control_values['fb_velocity'],
-                    control_values['ud_velocity'],
-                    control_values['yaw_velocity']
+                    head_model.lr_velocity,
+                    head_model.fb_velocity,
+                    head_model.ud_velocity,
+                    head_model.yaw_velocity
                 )
             else:
                 # No face detected - hover in place

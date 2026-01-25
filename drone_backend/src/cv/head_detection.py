@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import os
+from src.tello import Tello
 
 class HeadDetector:
     def __init__(self, model_path=None):
@@ -19,6 +20,11 @@ class HeadDetector:
         self.forward = False
         self.backward = False
         self.center = False
+
+        self.lr_velocity = 0
+        self.fb_velocity = 0
+        self.ud_velocity = 0
+        self.yaw_velocity = 0
 
     def _initialize_mediapipe(self):
         # Add this debug line
@@ -227,10 +233,10 @@ class HeadDetector:
 
                     # Initialize control values
                     control_values = {
-                        'lr_velocity': 0,      # left/right (not used, always 0)
-                        'fb_velocity': 0,      # forward/backward
-                        'ud_velocity': 0,      # up/down
-                        'yaw_velocity': 0,     # rotation
+                        #'lr_velocity': 0,      # left/right (not used, always 0)
+                        #'fb_velocity': 0,      # forward/backward
+                        #'ud_velocity': 0,      # up/down
+                        #'yaw_velocity': 0,     # rotation
                         'face_detected': False
                     }
 
@@ -267,26 +273,26 @@ class HeadDetector:
                             fb_velocity = 0
                             directions = self.drone_directions(x_head_in_square, y_head_in_square, new_w, new_h, x_max-x_min)
                             if self.center:
-                                control_values['yaw_velocity'] = 0
-                                control_values['ud_velocity'] = 0
+                                yaw_velocity = 0
+                                ud_velocity = 0
                                 print("centered")
                             if self.left:
-                                control_values['yaw_velocity'] = -30
+                                yaw_velocity = -30
                                 print("turning left")
                             elif self.right:
-                                control_values['yaw_velocity'] = 30
+                                lr_velocity = 30
                                 print("turning right")
                             if self.up:
-                                control_values['ud_velocity'] = 30
+                                ud_velocity = 30
                                 print("going up")
                             elif self.down:
-                                control_values['ud_velocity'] = -30
+                                ud_velocity = -30
                                 print("going down")
                             if self.forward:
-                                control_values['fb_velocity'] = 30
+                                fb_velocity = 30
                                 print("going forward")
                             elif self.backward:
-                                control_values['fb_velocity'] = -30
+                                fb_velocity = -30
                                 print("going backward")
 
                             cv2.putText(frame, "Face detected", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
