@@ -23,7 +23,7 @@ In forensic investigations, securing digital evidence often requires a two-perso
 - *** Forensic Documentation** - Records stable, third-person footage of evidence seizure suitable for legal proceedings
 - *** Smart Stabilization** - Dynamic "Dead Zone" filters out micro-movements, ensuring smooth and professional footage
 - *** Web Control Interface** - Clean Next.js dashboard for launching, monitoring, and landing operations
-- *** Real-Time Processing** - High-concurrency architecture with 10 threads managing video streaming, CV analysis, and flight control
+- *** Real-Time Processing** - High-concurrency architecture with 9 threads managing video streaming, CV analysis, and flight control
 
 ## How It Works
 
