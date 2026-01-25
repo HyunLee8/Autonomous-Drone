@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import mediapipe as mp
 import os
-from src.tello import Tello
+from src.tello import get_drone
 
 class HeadDetector:
     def __init__(self, model_path=None):
@@ -13,6 +13,7 @@ class HeadDetector:
         self.model_path = model_path
         self.frame_count = 0
         self._initialize_mediapipe()
+        self.tello_controller = get_drone
         self.left = False
         self.right = False
         self.up = False
@@ -152,17 +153,29 @@ class HeadDetector:
 
     def run_head_detection(self, frame_callback=None, stop_flag=None, send_commands=False):
         print("Initializing MediaPipe...")
+        drone = get_drone()
 
         BaseOptions = mp.tasks.BaseOptions
         FaceLandmarker = mp.tasks.vision.FaceLandmarker
         FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
         VisionRunningMode = mp.tasks.vision.RunningMode
         model_path = self.model_path
-        print("Opening camera...")
-        cap = cv2.VideoCapture(0)
-        if not cap.isOpened():
-            print('Error: Could not open camera.')
-            return
+                # Use Tello camera if drone exists, otherwise webcam
+        if drone is not None:
+            print("Using Tello camera...")
+            def get_frame():
+                return drone.get_frame()
+            cap = None
+        else:
+            print("Opening webcam...")
+            cap = cv2.VideoCapture(0)
+            if not cap.isOpened():
+                print('Error: Could not open camera.')
+                return
+            def get_frame():
+                ret, frame = cap.read()
+                return frame if ret else None
+
         options = FaceLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path),
             running_mode=VisionRunningMode.VIDEO,
@@ -179,8 +192,8 @@ class HeadDetector:
                 while True:
                     if stop_flag and stop_flag.is_set():  # ← Checks flag every iteration
                         break 
-                    ret, frame = cap.read()
-                    if not ret:
+                    frame = get_frame()
+                    if frame is None:
                         print('Error: Could not read frame.')
                         break
 

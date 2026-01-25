@@ -4,7 +4,11 @@ import time
 import logging
 
 logger = logging.getLogger(__name__)
+drone = None
 
+def get_drone():
+    return drone
+    
 class FlightLogic:
     
     def __init__(self):

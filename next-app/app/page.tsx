@@ -15,7 +15,6 @@ export default function Home() {
 
     try {
       fetch('http://127.0.0.1:5000/api/takeoff', { method: 'POST' });
-      await new Promise(resolve => setTimeout(resolve, 100));
       fetch('http://127.0.0.1:5000/api/start-tracking', { method: 'POST' });
       setCurrentMessage('Preparing for takeoff...')
       await SpeakWithElevenLabs('Preparing for takeoff...');
@@ -27,7 +26,6 @@ export default function Home() {
   const killSwitch = async () => {
     window.location.reload();
     fetch('http://127.0.0.1:5000/api/stop-tracking', { method: 'POST' });
-    await new Promise(resolve => setTimeout(resolve, 100));
     fetch('http://127.0.0.1:5000/api/land', { method: 'POST' })
   }
 
