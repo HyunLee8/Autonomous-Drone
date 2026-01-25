@@ -1,6 +1,5 @@
 # Gazer
 Gazer
-
 **An autonomous drone system that secures the chain of custody for digital forensic investigators.**
 
 [![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
@@ -20,11 +19,11 @@ In forensic investigations, securing digital evidence often requires a two-perso
 
 ## Key Features
 
-- **🎯 Autonomous Tracking** - Uses YOLO computer vision to identify the user and keep them centered in the frame without any manual piloting
-- **📹 Forensic Documentation** - Records stable, third-person footage of evidence seizure suitable for legal proceedings
-- **🎮 Smart Stabilization** - Dynamic "Dead Zone" filters out micro-movements, ensuring smooth and professional footage
-- **🌐 Web Control Interface** - Clean Next.js dashboard for launching, monitoring, and landing operations
-- **⚡ Real-Time Processing** - High-concurrency architecture with 10 threads managing video streaming, CV analysis, and flight control
+- *** Autonomous Tracking** - Uses YOLO computer vision to identify the user and keep them centered in the frame without any manual piloting
+- *** Forensic Documentation** - Records stable, third-person footage of evidence seizure suitable for legal proceedings
+- *** Smart Stabilization** - Dynamic "Dead Zone" filters out micro-movements, ensuring smooth and professional footage
+- *** Web Control Interface** - Clean Next.js dashboard for launching, monitoring, and landing operations
+- *** Real-Time Processing** - High-concurrency architecture with 10 threads managing video streaming, CV analysis, and flight control
 
 ## How It Works
 
@@ -177,10 +176,10 @@ Recordings are automatically saved to `recordings/` with timestamps.
 
 ## Future Roadmap
 
-- **🔍 Object Search**: Adapt YOLO to detect specific objects (laptops, hard drives) to autonomously scan a room for evidence
-- **🤚 Gesture Controls**: Hand signals to command the drone (palm up to pause)
-- **🎤 Voice Commands**: Verbal instructions for launch and movement
-- **🔄 Swarm Capabilities**: Multiple Gazers documenting a crime scene from multiple angles simultaneously
+- *** Object Search**: Adapt YOLO to detect specific objects (laptops, hard drives) to autonomously scan a room for evidence
+- *** Gesture Controls**: Hand signals to command the drone (palm up to pause)
+- *** Voice Commands**: Verbal instructions for launch and movement
+- *** Swarm Capabilities**: Multiple Gazers documenting a crime scene from multiple angles simultaneously
 
 ## Contributing
 
@@ -196,4 +195,4 @@ Built for the **Cipher Tech Digital Forensics Challenge**. Special thanks to the
 
 ---
 
-⚠️ **Safety Notice**: This system is designed to complement, not replace, proper forensic procedures. Always follow local drone regulations and your jurisdiction's legal requirements for evidence handling and documentation.
+**Safety Notice**: This system is designed to complement, not replace, proper forensic procedures. Always follow local drone regulations and your jurisdiction's legal requirements for evidence handling and documentation.
