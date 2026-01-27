@@ -1,9 +1,11 @@
 # Gazer
 Gazer
 
-## Overview
-![Image](https://github.com/user-attachments/assets/a805c00e-5555-4c11-84fb-4b9a71287c0d)
-![Image](https://github.com/user-attachments/assets/3506e63e-b9dc-4fbf-9b1c-e51c3d74c366)
+## Demo
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/a805c00e-5555-4c11-84fb-4b9a71287c0d" width="49%" />
+  <img src="https://github.com/user-attachments/assets/3506e63e-b9dc-4fbf-9b1c-e51c3d74c366" width="49%" />
+</div>
 
 ## Technical Stack
 
@@ -51,16 +53,3 @@ Terminal 2 - Frontend:
 cd next-app
 npm run dev
 ```
-
-
-## What We Learned
-
-- **Control Theory**: Tuning the Kₚ, Kᵢ, and Kd values is like an art form - a slightly wrong value means the drone oscillates out of control
-- **Architecture Matters**: You cannot just "throw more threads" at a problem without a solid plan for shared state and resource locking
-- **Hardware Limitations**: Working with real hardware (batteries, flight time, physical drift) is infinitely harder than software simulation
-
-## Future Roadmap
-
-- *** Object Search**: Adapt YOLO to detect specific objects (laptops, hard drives) to autonomously scan a room for evidence
-- *** Gesture Controls**: Hand signals to command the drone (palm up to pause)
-- *** Swarm Capabilities**: Multiple Gazers documenting a crime scene from multiple angles simultaneously
