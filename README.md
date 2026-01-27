@@ -2,6 +2,8 @@
 Gazer
 
 ## Overview
+![Image](https://github.com/user-attachments/assets/a805c00e-5555-4c11-84fb-4b9a71287c0d)
+![Image](https://github.com/user-attachments/assets/3506e63e-b9dc-4fbf-9b1c-e51c3d74c366)
 
 ## Technical Stack
 
