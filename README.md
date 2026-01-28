@@ -21,7 +21,6 @@ Autonomous Facial Tracking Drone using YOLO8 Nano for face tracking model and Te
 - **Node.js** 16.0 or higher
 - **DJI Tello Drone** (fully charged)
 - **WiFi capability** (to connect to drone network)
-- **Recommended**: 8GB+ RAM, multi-core processor
 
 ## Installation
 
