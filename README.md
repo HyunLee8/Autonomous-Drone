@@ -1,5 +1,7 @@
-# Gazer
+# Autonomous Drone Tracking
 Autonomous Facial Tracking Drone using YOLO8 Nano for face tracking model and Tello SDK for controls. Manually Implementing PID controls for smoother turns and 9 Concurrent threads running in the backend to handle all requests at the same time. 
+
+## [Link to UI](https://autonomous-drone-five.vercel.app/)
 
 ## Demo
 <div align="center">
