@@ -1,9 +1,7 @@
 # Autonomous Drone Tracking
 Autonomous Facial Tracking Drone using YOLO8 Nano for face tracking model and Tello SDK for controls. Manually Implementing PID controls for smoother turns and 9 Concurrent threads running in the backend to handle all requests at the same time. 
 
-## [Link to UI](https://autonomous-drone-five.vercel.app/)
-
-## Demo
+## Demo | [Link to UI](https://autonomous-drone-five.vercel.app/)
 <div align="center">
   <img src="https://github.com/user-attachments/assets/a805c00e-5555-4c11-84fb-4b9a71287c0d" width="49%" />
   <img src="https://github.com/user-attachments/assets/3506e63e-b9dc-4fbf-9b1c-e51c3d74c366" width="49%" />
